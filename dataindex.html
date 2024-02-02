@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Visualization Page</title>
+  <!-- Add your CSS styles or link external stylesheets here -->
+</head>
+<body>
+
+  <h1>Data Visualization Page</h1>
+
+  <form id="dataSelectionForm">
+    <label for="sectionId">Section ID:</label>
+    <select id="sectionId" name="sectionId">
+      <option value="1">Section 1</option>
+      <option value="2">Section 2</option>
+    </select>
+
+    <br>
+
+    <label for="dataId">Data ID:</label>
+    <select id="dataId" name="dataId">
+      <option value="1">Data 1</option>
+      <option value="2">Data 2</option>
+    </select>
+
+    <br>
+
+    <label for="timestamp">Select Timestamp:</label>
+    <input type="datetime-local" id="timestamp" name="timestamp">
+
+    <br>
+
+    <label for="visualizationMode">Visualization Mode:</label>
+    <select id="visualizationMode" name="visualizationMode">
+      <option value="table">Table</option>
+      <option value="chart">Chart</option>
+    </select>
+
+    <br>
+
+    <button type="button" onclick="getData()">Get Data</button>
+    <button type="button" onclick="downloadData()">Download Data</button>
+  </form>
+
+  <div id="visualizationContainer">
+    <table id="dataTable">
+      <thead>
+        <tr>
+          <th>Section ID</th>
+          <th>Data ID</th>
+          <th>Timestamp</th>
+          <th>Temperature</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Table body will be dynamically filled with data -->
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    async function getData() {
+      const sectionId = document.getElementById("sectionId").value;
+      const dataId = document.getElementById("dataId").value;
+      const timestamp = document.getElementById("timestamp").value;
+      const visualizationMode = document.getElementById("visualizationMode").value;
+
+      try {
+        const response = await fetch(`/api/getData?sectionId=${sectionId}&dataId=${dataId}&timestamp=${timestamp}`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch data: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        // Update visualizationContainer with the retrieved data based on visualizationMode
+        const dataTableBody = document.querySelector("#dataTable tbody");
+        dataTableBody.innerHTML = ""; // Clear existing data in the table body
+
+        // Implement logic to display data in the table
+        data.forEach(dataPoint => {
+          const row = dataTableBody.insertRow();
+          const cell1 = row.insertCell(0);
+          const cell2 = row.insertCell(1);
+          const cell3 = row.insertCell(2);
+          const cell4 = row.insertCell(3);
+
+          cell1.textContent = dataPoint.sectionId;
+          cell2.textContent = dataPoint.dataId;
+          cell3.textContent = dataPoint.timestamp;
+          cell4.textContent = dataPoint.temperature;
+        });
+      } catch (error) {
+        console.error(error.message);
+      }
+    }
+
+    function downloadData() {
+      // Implement logic to download data based on user selection
+    }
+  </script>
+
+</body>
+</html>
+

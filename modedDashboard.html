@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ANBM Real Time-TEER Monitoring System</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #logInButton{
+            height: 25px;
+            width: 8%;
+            position: absolute;
+            margin-right: 75%;
+            margin-top: 20px;
+        }
+
+        #metaDataButton{
+            height: 25px;
+            width: 8%;
+            position: absolute;
+            margin-left: 75%;
+            margin-top: 20px;
+        }
+
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            width: 100%;
+        }
+
+        .panel1{
+            width: 40%;
+            max-width: 700px;
+            max-width: 700px;
+            margin: 10px;
+            padding: 20px;
+            border: 2px solid #000;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        
+        .panel2{
+            width: 40%;
+            max-width: 700px;
+            margin: 10px;
+            padding: 20px;
+            border: 2px solid #000;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .table-container {
+            width: 100%;
+            max-width: 700px;
+            margin: 10px;
+            padding: 20px;
+            border: 2px solid #000;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .table-container {
+            width: 40%;
+            max-width: 700px;
+            margin: 10px;
+            padding: 20px;
+            border: 2px solid #000;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 10px;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            font-size: 16px;
+            padding: 8px;
+            border: 1px solid #ddd;
+        }
+
+        canvas {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        h2 {
+            font-size: 22px;
+        }
+
+        .sub-title {
+            font-size: 18px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>ANBM Real Time-TEER Monitoring System</h1>
+    <p class="sub-title">Currently Monitoring Data: iPS (IMR 90)-4; BMVEC Differentiation Run II</p>
+    <button id="logInButton">Log In</button>
+    <button id="metaDataButton">Meta Data</button>
+    <div class="container">
+        <!-- Graph 1: Barrier Resistance -->
+        <div class="panel1">
+            <h2>Temperature vs. Time</h2>
+            <canvas id="graph2"></canvas>
+        </div>
+
+        <!-- Graph 2: Temperature -->
+        <div class="panel2">
+            <h2>Barrier Resistance vs. Time</h2>
+            <canvas id="graph1"></canvas>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Graph 3: Combined Graph -->
+        <div class="panel1">
+            <h2>Combined Barrier Resistance and Temperature Graph</h2>
+            <canvas id="graph3"></canvas>
+        </div>
+
+        <!-- Data Table -->
+        <div class="table-container">
+            <h2>Last 10 TEER and Temperature Values</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>TEER Values (Ohms*cm²)</th>
+                        <th class="sensor-heading">Sensor 1 (°C)</th>
+                        <th class="sensor-heading">Sensor 2 (°C)</th>
+                        <th class="sensor-heading">Sensor 3 (°C)</th>
+                        <th class="sensor-heading">Sensor 4 (°C)</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTableBody">
+                    <!-- Last 10 TEER and temperature values will be added here dynamically -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // MQTT client setup
+        const client = mqtt.connect('ws://broker.hivemq.com:8000/mqtt'); //switchout
+
+        client.on('connect', function () {
+            client.subscribe('sensor_data/temperature');
+            client.subscribe('evom_data/teer');
+        });
+
+        client.on('message', function (topic, message) {
+            console.log("Received message:", message.toString());
+
+            try {
+                const data = JSON.parse(message.toString()); // Attempt to parse the MQTT message as JSON
+                let formattedTime = formatTimeLabel();
+                timeLabels.push(formattedTime);  // Add this line
+
+                if (topic === 'sensor_data/temperature') {
+                    temperatureData.sensor1.push(data.sensor1);
+                    temperatureData.sensor2.push(data.sensor2);
+                    temperatureData.sensor3.push(data.sensor3);
+                    temperatureData.sensor4.push(data.sensor4);
+
+                    updateGraphs();
+                    updateTable();
+
+                } else if (topic === 'evom_data/teer') {
+                    barrierResistanceData.push(data.barrierResistance);
+                    updateGraphs();
+                    updateTable();
+                }
+            } catch (e) {
+                console.error("Error parsing JSON:", e);
+            }
+        });
+
+        const maxBarrierResistance = 15000; // max 15000 Ohms*cm²
+        const maxTemperature = 50; // max 50°C
+        let timeLabels = [];
+        let barrierResistanceData = [];
+        let temperatureData = {
+            sensor1: [],
+            sensor2: [],
+            sensor3: [],
+            sensor4: []
+        };
+        let graph1, graph2, graph3;
+        let elapsedSeconds = 0;
+        let updateInterval = 1000; // 10 seconds
+
+        // Function to format time labels for the graph
+        function formatTimeLabel() {
+            if (elapsedSeconds < 60) {
+                return elapsedSeconds + 's';
+            } else if (elapsedSeconds < 3600) {
+                return Math.floor(elapsedSeconds / 60) + 'm';
+            } else {
+                return Math.floor(elapsedSeconds / 3600) + 'h';
+            }
+        }
+        // Function to update data and adjust interval
+        function updateData() {
+            let formattedTime = formatTimeLabel();
+              timeLabels.push(formattedTime);
+
+            updateGraphs();
+            updateTable();
+
+            // Update the interval
+            elapsedSeconds += updateInterval / 1000;
+            if (elapsedSeconds >= 60 && elapsedSeconds < 3600) {
+                updateInterval = 60000; // Update every 1 minute
+            } else if (elapsedSeconds >= 3600) {
+                updateInterval = 3600000; // Update every 1 hour
+            }
+
+            setTimeout(updateData, updateInterval);
+        }
+
+        // Function to update graphs with new data
+        function updateGraphs() {
+            addDataToGraph(graph1, timeLabels, barrierResistanceData, 'Barrier Resistance (Ohms*cm²)', 'blue');
+            addDataToGraph2(graph2, temperatureData.sensor1, 'Sensor 1 (°C)', 'red');
+            addDataToGraph2(graph3, barrierResistanceData, 'Combined Barrier Resistance (Ohms*cm²)', 'blue', temperatureData.sensor1, 'Sensor 1 (°C)', 'red');
+        }
+
+        // Function to add data to a graph
+        function addDataToGraph(graph, labels, data, label, borderColor, data2 = null, label2 = '', borderColor2 = '') {
+            graph.data.labels = labels;
+            graph.data.datasets[0].data = data;
+            graph.data.datasets[0].label = label;
+            graph.data.datasets[0].borderColor = borderColor;
+
+            if (data2 !== null) {
+                graph.data.datasets[1].data = data2;
+                graph.data.datasets[1].label = label2;
+                graph.data.datasets[1].borderColor = borderColor2;
+            }
+
+            graph.update();
+        }
+
+        function addDataToGraph2(graph, data, label, borderColor, data2 = null, label2 = '', borderColor2 = '') {
+            graph.data.labels = generateTimeLabels(graph);
+            graph.data.datasets[0].data = data;
+            graph.data.datasets[0].label = label;
+            graph.data.datasets[0].borderColor = borderColor;
+
+            if (data2 !== null) {
+                graph.data.datasets[1].data = data2;
+                graph.data.datasets[1].label = label2;
+                graph.data.datasets[1].borderColor = borderColor2;
+            }
+
+            graph.update();
+        }
+        function formatTimeLabel1(totalSeconds) {
+            let hours = Math.floor(totalSeconds / 3600);
+            let minutes = Math.floor((totalSeconds - (hours * 3600)) / 60);
+            let seconds = totalSeconds - (hours * 3600) - (minutes * 60);
+        
+            // Padding with '0' if necessary
+            hours = hours < 10 ? '0' + hours : hours;
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            seconds = seconds < 10 ? '0' + seconds : seconds;
+        
+            return hours + ':' + minutes + ':' + seconds;
+        }
+
+        function generateTimeLabels(chart) {
+            let labels = [];
+  
+           let totalDuration = chart.data.datasets[1].data.length; // Assuming each data point is one second explain this
+        
+            for (let i = 0; i < totalDuration; i++) {
+                labels.push(formatTimeLabel1(i));
+            }
+        
+            return labels;
+        }
+
+        // Function to update the table with the latest 10 data points
+        function updateTable() {
+            const dataTableBody = document.getElementById('dataTableBody');
+            dataTableBody.innerHTML = ''; // Clear existing data
+
+            // Determine the number of rows to display based on the data available
+            let numRows = Math.max(barrierResistanceData.length, temperatureData.sensor1.length);
+            let startIndex = Math.max(0, numRows - 10);
+
+            for (let i = startIndex; i < numRows; i++) {
+                const row = dataTableBody.insertRow(-1);
+
+                // Barrier Resistance Data
+                let barrierValue = barrierResistanceData[i] ? barrierResistanceData[i].toFixed(2) : 'N/A';
+                row.insertCell(0).textContent = barrierValue;
+
+                // Temperature Data
+                let temp1 = temperatureData.sensor1[i] ? temperatureData.sensor1[i].toFixed(2) : 'N/A';
+                let temp2 = temperatureData.sensor2[i] ? temperatureData.sensor2[i].toFixed(2) : 'N/A';
+                let temp3 = temperatureData.sensor3[i] ? temperatureData.sensor3[i].toFixed(2) : 'N/A';
+                let temp4 = temperatureData.sensor4[i] ? temperatureData.sensor4[i].toFixed(2) : 'N/A';
+
+                row.insertCell(1).textContent = temp1;
+                row.insertCell(2).textContent = temp2;
+                row.insertCell(3).textContent = temp3;
+                row.insertCell(4).textContent = temp4;
+            }
+        }
+
+        // Initialize the graphs
+        function initializeGraphs() {
+            const ctx1 = document.getElementById('graph1').getContext('2d');
+            graph1 = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: timeLabels,
+                    datasets: [{ label: 'Barrier Resistance (Ohms*cm²)', data: barrierResistanceData, borderColor: 'blue', borderWidth: 1 }]
+                },
+                options: { scales: { y: { beginAtZero: true, max: maxBarrierResistance } } }
+            });
+
+            const ctx2 = document.getElementById('graph2').getContext('2d');
+            graph2 = new Chart(ctx2, {
+                type: 'line',
+                data: {
+                    labels: timeLabels,
+                    datasets: [
+                        { label: 'Sensor 1 (°C)', data: temperatureData.sensor1, borderColor: 'red', borderWidth: 1 },
+                        { label: 'Sensor 2 (°C)', data: temperatureData.sensor2, borderColor: 'green', borderWidth: 1 },
+                        { label: 'Sensor 3 (°C)', data: temperatureData.sensor3, borderColor: 'orange', borderWidth: 1 },
+                        { label: 'Sensor 4 (°C)', data: temperatureData.sensor4, borderColor: 'purple', borderWidth: 1 }
+                    ]
+                },
+                options: { scales: { y: { beginAtZero: false }, x: { ticks: { maxTicksLimit: 20 } } },
+                plugins: {
+                    zoom: {
+                        zoom: {
+                            onZoom: function ({ chart }) {
+                                chart.data.labels = generateTimeLabels(chart);
+                                chart.update();
+                            },
+                            wheel: { enabled: true },
+                            pinch: { enabled: true },
+                            mode: 'x'
+                        },
+                        pan: {
+                            onPan: function ({ chart }) {
+                                chart.data.labels = generateTimeLabels(chart);
+                                chart.update();
+                            },
+                            enabled: true,
+                            mode: 'x'
+                        }
+                    }
+                } }
+            });
+
+            const ctx3 = document.getElementById('graph3').getContext('2d');
+            graph3 = new Chart(ctx3, {
+                type: 'line',
+                data: {
+                    labels: timeLabels,
+                    datasets: [
+                        { label: 'Barrier Resistance (Ohms*cm²)', data: barrierResistanceData, borderColor: 'blue', borderWidth: 1, yAxisID: 'y1' },
+                        { label: 'Sensor 1 (°C)', data: temperatureData.sensor1, borderColor: 'red', borderWidth: 1, yAxisID: 'y2' },
+                        { label: 'Sensor 2 (°C)', data: temperatureData.sensor2, borderColor: 'green', borderWidth: 1, yAxisID: 'y2' },
+                        { label: 'Sensor 3 (°C)', data: temperatureData.sensor3, borderColor: 'orange', borderWidth: 1, yAxisID: 'y2' },
+                        { label: 'Sensor 4 (°C)', data: temperatureData.sensor4, borderColor: 'purple', borderWidth: 1, yAxisID: 'y2' }
+                    ]
+                },
+                options: {
+                    scales: {
+                        y1: { type: 'linear', display: true, position: 'left',min: 0 , max: maxBarrierResistance  },
+                        y2: { type: 'linear', display: true, position: 'right' },
+                        x: {
+                            ticks: {
+                                maxTicksLimit: 20
+                            }
+                        }
+                    },
+                    plugins: {
+                        zoom: {
+                            zoom: {
+                                onZoom: function ({ chart }) {
+                                    chart.data.labels = generateTimeLabels(chart);
+                                    chart.update();
+                                },
+                                wheel: { enabled: true },
+                                pinch: { enabled: true },
+                                mode: 'x'
+                            },
+                            pan: {
+                                onPan: function ({ chart }) {
+                                    chart.data.labels = generateTimeLabels(chart);
+                                    chart.update();
+                                },
+                                enabled: true,
+                                mode: 'x'
+                            }
+                        }
+                    } 
+                }
+            });
+        }
+        // Start the application
+        initializeGraphs();
+        updateData();
+    </script>
+</body>
+
+</html>

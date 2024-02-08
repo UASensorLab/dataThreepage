@@ -45,19 +45,7 @@
   </form>
 
   <div id="visualizationContainer">
-    <table id="dataTable">
-      <thead>
-        <tr>
-          <th>Section ID</th>
-          <th>Data ID</th>
-          <th>Timestamp</th>
-          <th>Temperature</th>
-        </tr>
-      </thead>
-      <tbody>
-        <!-- Table body will be dynamically filled with data -->
-      </tbody>
-    </table>
+    <!-- Display data visualization here dynamically based on user selection -->
   </div>
 
   <script>
@@ -76,21 +64,15 @@
         const data = await response.json();
 
         // Update visualizationContainer with the retrieved data based on visualizationMode
-        const dataTableBody = document.querySelector("#dataTable tbody");
-        dataTableBody.innerHTML = ""; // Clear existing data in the table body
+        const visualizationContainer = document.getElementById("visualizationContainer");
+        visualizationContainer.innerHTML = `<p>Displaying data for Section ${sectionId}, Data ${dataId}, Timestamp ${timestamp} in ${visualizationMode} mode.</p>`;
 
-        // Implement logic to display data in the table
+        // Implement logic to display data in table or chart based on user selection
+        // For example, you can iterate through the 'data' array and append it to the visualizationContainer
         data.forEach(dataPoint => {
-          const row = dataTableBody.insertRow();
-          const cell1 = row.insertCell(0);
-          const cell2 = row.insertCell(1);
-          const cell3 = row.insertCell(2);
-          const cell4 = row.insertCell(3);
-
-          cell1.textContent = dataPoint.sectionId;
-          cell2.textContent = dataPoint.dataId;
-          cell3.textContent = dataPoint.timestamp;
-          cell4.textContent = dataPoint.temperature;
+          const paragraph = document.createElement("p");
+          paragraph.textContent = `Temperature: ${dataPoint.temperature}, Timestamp: ${dataPoint.timestamp}`;
+          visualizationContainer.appendChild(paragraph);
         });
       } catch (error) {
         console.error(error.message);
@@ -101,6 +83,54 @@
       // Implement logic to download data based on user selection
     }
   </script>
+
+    <!-- Add your CSS styles or link external stylesheets here -->
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      margin: 20px;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    form {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    select, input, button {
+      margin-bottom: 10px;
+    }
+
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #45a049;
+    }
+
+    #visualizationContainer {
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 4px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+  </style>
+
 
 </body>
 </html>
